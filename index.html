@@ -1,0 +1,2558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exif 读取器</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      color-scheme: light dark;
+      --bg: #eeeeef;
+      --surface: rgba(255,255,255,.74);
+      --surface-strong: rgba(255,255,255,.92);
+      --surface2: #f4f4f5;
+      --surface3: #ffffff;
+      --zone-left: #e4e4e7;
+      --zone-middle: #dddddf;
+      --zone-right: #d4d4d8;
+      --border: rgba(24,24,27,.08);
+      --border-strong: rgba(24,24,27,.14);
+      --accent: #0a84ff;
+      --accent-soft: rgba(10,132,255,.12);
+      --accent-strong: rgba(10,132,255,.2);
+      --text: #18181b;
+      --muted: #71717a;
+      --success: #71717a;
+      --shadow: 0 18px 45px rgba(24,24,27,.08);
+      --shadow-soft: 0 8px 24px rgba(24,24,27,.05);
+      --radius-shell: 32px;
+      --radius-panel: 24px;
+      --panel-padding: 12px;
+      --radius-card: calc(var(--radius-panel) - var(--panel-padding));
+      --radius-control: 10px;
+      --radius-pill: 999px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121214;
+        --surface: rgba(39,39,42,.72);
+        --surface-strong: rgba(39,39,42,.9);
+        --surface2: #18181b;
+        --surface3: #1f1f23;
+        --zone-left: #27272a;
+        --zone-middle: #212124;
+        --zone-right: #18181b;
+        --border: rgba(161,161,170,.16);
+        --border-strong: rgba(161,161,170,.22);
+        --accent: #0a84ff;
+        --accent-soft: rgba(10,132,255,.16);
+        --accent-strong: rgba(10,132,255,.26);
+        --text: #f4f4f5;
+        --muted: #a1a1aa;
+        --success: #a1a1aa;
+        --shadow: 0 24px 52px rgba(0,0,0,.34);
+        --shadow-soft: 0 10px 28px rgba(0,0,0,.22);
+      }
+    }
+
+    body {
+      position: relative;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Pro Text', 'SF Pro Display', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      padding: 18px;
+    }
+
+    body.intro-mode {
+      overflow: hidden;
+    }
+
+    .screen-zone {
+      position: absolute;
+      inset: 0 auto auto 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .screen-zone-left {
+      background: var(--zone-left);
+    }
+
+    .screen-zone-middle {
+      background: var(--zone-middle);
+    }
+
+    .screen-zone-right {
+      background: var(--zone-right);
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      margin: 0 auto 8px;
+      width: min(1800px, 100%);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: var(--radius-pill);
+      transition: width .8s cubic-bezier(.22,1,.36,1);
+    }
+
+    body.intro-mode header {
+      width: min(620px, calc(100vw - 36px));
+    }
+
+    header .logo {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -.03em;
+      color: var(--text);
+    }
+
+    .main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      width: min(1800px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-areas: 'left middle frame';
+      grid-template-columns: minmax(300px, 1fr) minmax(260px, .82fr) minmax(554px, 800px);
+      gap: 0;
+      align-items: start;
+      overflow: hidden;
+      transition: width .8s cubic-bezier(.22,1,.36,1), transform .8s cubic-bezier(.22,1,.36,1);
+    }
+
+    /* ── LEFT PANEL ── */
+    .left-panel {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 12px 24px 28px;
+      gap: 20px;
+      background: transparent;
+      min-height: 100%;
+      transition: transform .8s cubic-bezier(.22,1,.36,1), opacity .45s ease;
+    }
+
+    .drop-zone {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-panel);
+      background: var(--surface3);
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      cursor: pointer;
+      transition: all .25s ease;
+      position: relative;
+      overflow: hidden;
+      padding: 22px;
+    }
+
+    .drop-zone.has-image {
+      padding: 0;
+      background: transparent;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface3) 88%, var(--accent) 12%);
+      transform: translateY(-2px);
+      box-shadow: 0 18px 36px rgba(10,132,255,.12);
+    }
+
+    .drop-zone.has-image:hover,
+    .drop-zone.has-image.drag-over {
+      background: transparent;
+    }
+
+    .drop-zone .icon {
+      width: 58px;
+      height: 58px;
+      margin-bottom: 14px;
+      border-radius: var(--radius-control);
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface3) 88%, var(--accent) 12%);
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .drop-zone .hint {
+      color: var(--muted);
+      font-size: 14px;
+      text-align: left;
+    }
+
+    #drop-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    .drop-zone .hint strong {
+      color: var(--accent);
+    }
+
+    #file-input { display: none; }
+
+    .preview-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      object-fit: contain;
+      display: none;
+    }
+
+    .panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .raw-exif-block {
+      background: color-mix(in srgb, var(--surface3) 80%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 10px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .raw-exif-toggle {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 8px 10px;
+      border-radius: var(--radius-control);
+      color: var(--text);
+      user-select: none;
+    }
+
+    .raw-exif-toggle::-webkit-details-marker {
+      display: none;
+    }
+
+    .raw-exif-toggle::after {
+      content: '+';
+      font-size: 18px;
+      line-height: 1;
+      color: var(--muted);
+    }
+
+    .raw-exif-block[open] .raw-exif-toggle::after {
+      content: '-';
+    }
+
+    .exif-table {
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 320px;
+    }
+
+    .raw-exif-block[open] .exif-table {
+      margin-top: 10px;
+    }
+
+    .exif-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
+      padding: 10px 14px;
+      background: color-mix(in srgb, var(--surface3) 78%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-control);
+      font-size: 13px;
+      animation: fadeIn .2s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .exif-key {
+      color: var(--muted);
+      font-size: 12px;
+      align-self: center;
+    }
+
+    .exif-val {
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--tag-bg);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .empty-hint {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    /* ── MIDDLE / RIGHT PANELS ── */
+    .middle-panel,
+    .frame-panel {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-height: 100%;
+      transition: opacity .45s ease, transform .8s cubic-bezier(.22,1,.36,1);
+    }
+
+    .middle-panel {
+      grid-area: middle;
+      padding: 12px 12px 24px;
+      background: transparent;
+    }
+
+    .frame-panel {
+      grid-area: frame;
+      padding: 12px 28px 24px 12px;
+      height: 100%;
+      background: transparent;
+      width: min(100%, 800px);
+      min-width: min(100%, 554px);
+    }
+
+    body.intro-mode .main {
+      width: min(620px, calc(100vw - 36px));
+      grid-template-areas: 'left';
+      grid-template-columns: minmax(0, 1fr);
+      align-content: center;
+      min-height: calc(100vh - 140px);
+    }
+
+    body.intro-mode .left-panel {
+      transform: translateX(0);
+    }
+
+    body.intro-mode .left-panel > :not(.drop-zone) {
+      display: none;
+    }
+
+    body.intro-mode .middle-panel,
+    body.intro-mode .frame-panel,
+    body.intro-mode footer {
+      display: none;
+    }
+
+    body.workspace-mode .middle-panel,
+    body.workspace-mode .frame-panel,
+    body.workspace-mode footer {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(60px);
+    }
+
+    body.workspace-mode.workspace-ready .middle-panel,
+    body.workspace-mode.workspace-ready .frame-panel,
+    body.workspace-mode.workspace-ready footer {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+
+    .output-settings {
+      background: color-mix(in srgb, var(--surface3) 80%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-panel);
+      padding: var(--panel-padding);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .settings-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      padding: 4px 8px 0;
+    }
+
+    .sortable-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: color-mix(in srgb, var(--surface3) 82%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+    }
+
+    .sortable-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+      min-height: 56px;
+    }
+
+    .sortable-item + .sortable-item {
+      border-top: 1px solid var(--border);
+    }
+
+    .sortable-item:hover {
+      background: rgba(255,255,255,.02);
+    }
+
+    /* 拖拽时原位置的虚影占位符 */
+    .sortable-ghost {
+      opacity: 0.4 !important;
+      background: var(--accent-soft) !important;
+      border: 1px dashed var(--accent) !important;
+    }
+
+    /* 正在被拖拽的浮空元素 */
+    .sortable-drag {
+      background: var(--surface-strong) !important;
+      box-shadow: 0 16px 32px rgba(0,0,0,.15) !important;
+      border-radius: var(--radius-card) !important;
+      border: 1px solid var(--accent) !important;
+      opacity: 1 !important;
+      z-index: 100;
+      cursor: grabbing !important;
+    }
+
+    .sort-item-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .drag-handle {
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      cursor: grab;
+    }
+
+    .sort-item-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .check-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      cursor: pointer;
+    }
+
+    .check-pill input {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-strong);
+      background: color-mix(in srgb, var(--surface3) 92%, transparent);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+
+    .check-pill input::after {
+      content: '';
+      width: 12px;
+      height: 12px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      transform: scale(0);
+      transition: transform .25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .check-pill input:checked {
+      border-color: var(--accent);
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .check-pill input:checked::after {
+      transform: scale(1);
+    }
+
+    .check-pill input:focus-visible {
+      outline: 2px solid var(--accent-strong);
+      outline-offset: 2px;
+    }
+
+    .template-tabs {
+      display: inline-flex;
+      align-self: center;
+      padding: 5px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--surface3) 80%, transparent);
+      border: 1px solid var(--border);
+      gap: 6px;
+    }
+
+    .template-tab {
+      padding: 10px 16px;
+      border: none;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+      white-space: nowrap;
+    }
+
+    .template-tab:hover {
+      color: var(--text);
+      background: var(--accent-soft);
+    }
+
+    .template-tab.active {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 10px 24px rgba(10,132,255,.22);
+    }
+
+    .output-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-panel);
+      padding: var(--panel-padding);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-top: 4px;
+    }
+
+    .btn-with-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .copy-btn {
+      padding: 8px 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius-pill);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .2s, background-color .2s;
+      white-space: nowrap;
+    }
+
+    .output-copy-btn {
+      width: 100%;
+    }
+
+    .copy-btn:hover { opacity: .85; }
+    .copy-btn:active { opacity: .7; transform: scale(.98); }
+
+    .output-text {
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.9;
+      color: var(--text);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 18px;
+      min-height: 140px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .output-text .line-key {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .output-text .line-val {
+      color: var(--text);
+    }
+
+    /* Field badges */
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .field-card {
+      background: color-mix(in srgb, var(--surface3) 80%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .field-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .field-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .field-value.highlight {
+      color: var(--accent);
+    }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .location-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .geo-badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(113,113,122,.12);
+      color: var(--success);
+      border: 1px solid rgba(113,113,122,.22);
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      width: min(1400px, 100%);
+      margin: 18px auto 0;
+      padding: 18px 28px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      border-radius: var(--radius-pill);
+    }
+
+    .output-text-inline {
+      font-size: 15px;
+      line-height: 1.6;
+      letter-spacing: .01em;
+      min-height: auto;
+      padding: 16px 18px;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+    }
+
+    .inline-sep {
+      color: var(--muted);
+      padding: 0 6px;
+      user-select: none;
+    }
+
+    .inline-part {
+      color: var(--text);
+    }
+
+    .inline-part.model  { color: var(--accent); font-weight: 700; }
+    .inline-part.date   { color: var(--text); }
+    .inline-part.ap     { color: var(--accent); }
+    .inline-part.ss     { color: var(--accent); }
+    .inline-part.iso    { color: var(--accent); }
+    .inline-part.location { color: var(--muted); }
+    .inline-part.coords { color: var(--muted); }
+
+    .frame-card {
+      background: color-mix(in srgb, var(--surface3) 80%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-panel);
+      padding: var(--panel-padding);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .frame-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 4px 8px 0;
+    }
+
+    .secondary-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+      white-space: nowrap;
+    }
+
+    .secondary-btn:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent-strong);
+    }
+
+    .secondary-btn:active {
+      transform: scale(.98);
+    }
+
+    .frame-preview-shell {
+      position: relative;
+      min-height: 320px;
+      border-radius: var(--radius-card);
+      overflow: hidden;
+    }
+
+    .frame-preview-shell.is-locked .frame-canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain !important;
+    }
+
+    .frame-canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: transparent;
+    }
+
+    .frame-placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      border-radius: var(--radius-card);
+      border: 1px dashed var(--border);
+      background: color-mix(in srgb, var(--surface3) 70%, transparent);
+      padding: 24px;
+    }
+
+    .frame-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: color-mix(in srgb, var(--surface3) 82%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+    }
+
+    .frame-control-group {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 56px;
+    }
+
+    .frame-controls > div + div {
+      border-top: 1px solid var(--border);
+    }
+
+    .valign-wrapper {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease, border-color 0.4s ease;
+    }
+
+    .valign-wrapper.is-hidden {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      border-top-color: transparent;
+      pointer-events: none;
+    }
+
+    .valign-inner {
+      overflow: hidden;
+    }
+
+    .valign-inner .frame-control-group {
+      border-top: none !important;
+    }
+
+    .frame-control-group .panel-title {
+      margin-bottom: 0;
+      min-width: 88px;
+      flex: 0 0 88px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--text);
+    }
+
+    .frame-control-group > :last-child {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .layout-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .align-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .layout-btn {
+      padding: 8px 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--surface3) 88%, transparent);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+      white-space: nowrap;
+    }
+
+    .layout-btn svg {
+      flex-shrink: 0;
+    }
+
+    .layout-btn.icon-only {
+      padding: 8px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+    }
+
+    .layout-btn.active {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: min(100%, 340px);
+    }
+
+    .range-row input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, var(--accent) var(--progress, 50%), var(--border-strong) var(--progress, 50%));
+      outline: none;
+      cursor: pointer;
+    }
+
+    .range-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 1px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.1);
+      margin-top: -9px;
+      cursor: grab;
+      transition: transform 0.15s cubic-bezier(0.2, 0, 0.2, 1);
+    }
+
+    .range-row input[type="range"]::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.1);
+    }
+
+    .range-row input[type="range"]::-moz-range-thumb {
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 1px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.1);
+      cursor: grab;
+      transition: transform 0.15s cubic-bezier(0.2, 0, 0.2, 1);
+    }
+
+    .range-row input[type="range"]::-moz-range-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.1);
+    }
+
+    .range-row input[type="range"]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: transparent;
+    }
+
+    .range-row input[type="range"]::-moz-range-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: transparent;
+    }
+
+    .range-value {
+      min-width: 48px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .swatch-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .swatch-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid var(--border-strong);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+      cursor: pointer;
+      transition: transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .swatch-btn.active {
+      border-color: var(--accent);
+      transform: scale(1.15);
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.5), 0 4px 10px rgba(0,0,0,.08);
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 1280px) {
+      .main {
+        grid-template-areas:
+          'left middle'
+          'frame frame';
+        grid-template-columns: minmax(280px, .95fr) minmax(260px, .85fr);
+        gap: 0;
+      }
+
+      .frame-panel {
+        width: 100%;
+        min-width: 0;
+        padding: 12px 28px 24px;
+      }
+
+      body.intro-mode .main {
+        width: min(620px, calc(100vw - 36px));
+        grid-template-areas: 'left';
+        grid-template-columns: minmax(0, 1fr);
+      }
+      
+      body.intro-mode header {
+        width: min(620px, calc(100vw - 36px));
+      }
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      header { 
+        padding: 12px 16px; 
+        margin: 0 auto 8px;
+      }
+      .left-panel, .middle-panel, .frame-panel {
+        padding: 12px 16px 20px;
+      }
+      .main {
+        grid-template-areas:
+          'left'
+          'middle'
+          'frame';
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      :root {
+        --radius-shell: 24px;
+        --radius-panel: 20px;
+        --panel-padding: 10px;
+        --radius-control: 8px;
+      }
+      .fields-grid { grid-template-columns: repeat(2, 1fr); }
+
+      body.intro-mode .main {
+        width: min(560px, calc(100vw - 20px));
+        min-height: calc(100vh - 112px);
+      }
+      
+      body.intro-mode header {
+        width: min(560px, calc(100vw - 20px));
+      }
+    }
+
+    @media (max-width: 560px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .fields-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .output-header {
+        gap: 12px;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .frame-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .sortable-item {
+        flex-direction: row;
+        align-items: center;
+      }
+
+      .check-pill {
+        margin-left: auto;
+      }
+
+      .frame-control-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .frame-control-group .panel-title {
+        flex-basis: auto;
+      }
+
+      .frame-control-group > :last-child,
+      .layout-buttons,
+      .align-buttons,
+      .swatch-row {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body class="intro-mode">
+
+<div class="screen-zone screen-zone-left" aria-hidden="true"></div>
+<div class="screen-zone screen-zone-middle" aria-hidden="true"></div>
+<div class="screen-zone screen-zone-right" aria-hidden="true"></div>
+
+<header>
+  <span class="logo">ExifReader</span>
+</header>
+
+<div class="main">
+
+  <!-- ══ LEFT ══ -->
+  <div class="left-panel">
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <img id="preview" class="preview-img" alt="预览" />
+      <div id="drop-hint">
+        <div class="icon">
+          <!-- 上传/图片图标替代原本的加号 -->
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        </div>
+        <div class="hint">
+          <strong>拖入图片</strong> 或点击选择<br />
+          <span style="font-size:12px;">支持 JPEG / HEIC / TIFF 等含 Exif 格式</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fields-grid" id="fields-grid">
+      <div class="field-card">
+        <div class="field-label">机型</div>
+        <div class="field-value" id="f-model">—</div>
+      </div>
+      <div class="field-card">
+        <div class="field-label">光圈</div>
+        <div class="field-value highlight" id="f-aperture">—</div>
+      </div>
+      <div class="field-card">
+        <div class="field-label">快门</div>
+        <div class="field-value highlight" id="f-shutter">—</div>
+      </div>
+      <div class="field-card">
+        <div class="field-label">ISO</div>
+        <div class="field-value highlight" id="f-iso">—</div>
+      </div>
+      <div class="field-card">
+        <div class="field-label">日期</div>
+        <div class="field-value" id="f-date">—</div>
+      </div>
+      <div class="field-card">
+        <div class="field-label">位置</div>
+        <div class="location-row">
+          <div class="field-value" id="f-location">—</div>
+          <div class="spinner" id="loc-spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <details class="raw-exif-block">
+      <summary class="raw-exif-toggle">
+        <span class="panel-title">原始 EXIF 数据</span>
+      </summary>
+      <div class="exif-table" id="exif-table">
+        <div class="empty-hint">尚未读取到数据</div>
+      </div>
+    </details>
+
+  </div>
+
+  <!-- ══ MIDDLE ══ -->
+  <div class="middle-panel">
+
+    <div class="output-settings">
+      <div class="settings-title">信息显示项</div>
+      <ul class="sortable-list" id="output-order-list"></ul>
+    </div>
+
+    <div class="output-card">
+      <div class="output-header">
+        <div class="template-tabs" role="tablist" aria-label="信息文本模板">
+          <button class="template-tab active" id="tab-detailed" type="button" role="tab" aria-selected="true" onclick="setActiveTemplateTab('detailed')">详细格式</button>
+          <button class="template-tab" id="tab-inline" type="button" role="tab" aria-selected="false" onclick="setActiveTemplateTab('inline')">简约格式</button>
+        </div>
+      </div>
+      <div class="output-text" id="output-text">
+        <span style="color:var(--muted); font-size:13px;">等待图片…</span>
+      </div>
+      <button class="copy-btn output-copy-btn btn-with-icon" id="copy-btn" onclick="copyActiveOutput()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <span>复制</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ══ RIGHT ══ -->
+  <div class="frame-panel">
+
+    <div class="frame-card">
+      <div class="frame-header">
+        <div class="settings-title">合成相框</div>
+        <button class="copy-btn btn-with-icon" id="frame-download-btn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>下载</span>
+        </button>
+      </div>
+
+      <div class="frame-preview-shell">
+        <canvas class="frame-canvas" id="frame-canvas" width="1200" height="900"></canvas>
+        <div class="frame-placeholder" id="frame-placeholder">导入图片后可在这里预览相框效果</div>
+      </div>
+
+      <div class="frame-controls">
+        <div class="frame-control-group">
+          <div class="panel-title">排版方式</div>
+          <div class="layout-buttons" id="frame-layout-buttons">
+            <button class="layout-btn active" type="button" data-layout="bottom" title="下边框">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4z" fill="currentColor" stroke="none"/></svg>
+              <span>下边</span>
+            </button>
+            <button class="layout-btn" type="button" data-layout="top" title="上边框">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4H3V5z" fill="currentColor" stroke="none"/></svg>
+              <span>上边</span>
+            </button>
+            <button class="layout-btn" type="button" data-layout="left" title="左边框">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 5a2 2 0 0 1 2-2h4v18H5a2 2 0 0 1-2-2V5z" fill="currentColor" stroke="none"/></svg>
+              <span>左边</span>
+            </button>
+            <button class="layout-btn" type="button" data-layout="right" title="右边框">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4V3z" fill="currentColor" stroke="none"/></svg>
+              <span>右边</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">文字对齐</div>
+          <div class="align-buttons" id="frame-align-buttons">
+            <button class="layout-btn icon-only active" type="button" data-align="left" title="左对齐">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="15" y1="12" x2="3" y2="12"></line><line x1="17" y1="18" x2="3" y2="18"></line></svg>
+            </button>
+            <button class="layout-btn icon-only" type="button" data-align="center" title="居中">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="19" y1="12" x2="5" y2="12"></line><line x1="17" y1="18" x2="7" y2="18"></line></svg>
+            </button>
+            <button class="layout-btn icon-only" type="button" data-align="right" title="右对齐">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="12" x2="9" y2="12"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="valign-wrapper is-hidden" id="group-valign-wrapper">
+          <div class="valign-inner">
+            <div class="frame-control-group" id="group-valign">
+              <div class="panel-title">垂直对齐</div>
+              <div class="align-buttons" id="frame-valign-buttons">
+                <button class="layout-btn icon-only" type="button" data-valign="top" title="顶端对齐">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="12" y1="20" x2="12" y2="10"></line><polyline points="8 14 12 10 16 14"></polyline></svg>
+                </button>
+                <button class="layout-btn icon-only" type="button" data-valign="middle" title="垂直居中">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="12" y1="4" x2="12" y2="9"></line><polyline points="9 6 12 9 15 6"></polyline><line x1="12" y1="20" x2="12" y2="15"></line><polyline points="9 18 12 15 15 18"></polyline></svg>
+                </button>
+                <button class="layout-btn icon-only active" type="button" data-valign="bottom" title="底端对齐">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="18" x2="20" y2="18"></line><line x1="12" y1="4" x2="12" y2="14"></line><polyline points="8 10 12 14 16 10"></polyline></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">合并参数</div>
+          <div style="display: flex; justify-content: flex-end;">
+            <label class="check-pill" title="合并光圈、快门、ISO">
+              <input type="checkbox" id="frame-merge-params" />
+            </label>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">边框宽度</div>
+          <div class="range-row">
+            <input id="frame-border-range" type="range" min="40" max="220" step="4" value="88" />
+            <span class="range-value" id="frame-border-value">88</span>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">背景颜色</div>
+          <div class="swatch-row" id="frame-bg-swatches">
+            <button class="swatch-btn active" type="button" data-role="bg" data-color="#F4F4F5" style="background:#F4F4F5;" title="浅灰白"></button>
+            <button class="swatch-btn" type="button" data-role="bg" data-color="#FFFFFF" style="background:#FFFFFF;" title="纯白"></button>
+            <button class="swatch-btn" type="button" data-role="bg" data-color="#E8E6E1" style="background:#E8E6E1;" title="象牙暖白"></button>
+            <button class="swatch-btn" type="button" data-role="bg" data-color="#1C1C1E" style="background:#1C1C1E;" title="曜石黑"></button>
+            <button class="swatch-btn" type="button" data-role="bg" data-color="#2C3539" style="background:#2C3539;" title="午夜蓝"></button>
+            <button class="swatch-btn" type="button" data-role="bg" data-color="#4A4543" style="background:#4A4543;" title="碳灰"></button>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">文字颜色</div>
+          <div class="swatch-row" id="frame-text-swatches">
+            <button class="swatch-btn active" type="button" data-role="text" data-color="#1C1C1E" style="background:#1C1C1E;" title="石墨黑"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#FFFFFF" style="background:#FFFFFF;" title="纯白"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#8E8E93" style="background:#8E8E93;" title="银灰"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#B69D74" style="background:#B69D74;" title="香槟金"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#4A6B7C" style="background:#4A6B7C;" title="石板蓝"></button>
+          </div>
+        </div>
+
+        <div class="frame-control-group">
+          <div class="panel-title">内容大小</div>
+          <div class="range-row">
+            <input id="frame-font-range" type="range" min="80" max="150" step="5" value="100" />
+            <span class="range-value" id="frame-font-value">100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>ExifReader · 纯客户端处理，图片数据不上传服务器</footer>
+
+<!-- 引入 Sortable.js 实现丝滑拖拽 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<!-- exif.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════
+   State
+════════════════════════════════════════ */
+let parsedData = {};
+let activeOutputType = 'detailed';
+let currentImageSrc = '';
+let currentImageName = 'exif-frame';
+let draggedOutputKey = null;
+
+const OUTPUT_ITEMS = {
+  model: { label: '机型', value: d => d.model || '未知机型', inlineClass: 'model' },
+  date: { label: '时间', value: d => d.date || '未知时间', inlineClass: 'date' },
+  location: { label: '位置', value: d => d.location || (d.lat !== null && d.lon !== null ? `${d.lat}, ${d.lon}` : '无 GPS 信息'), inlineValue: d => d.locationShort || d.location || (d.lat !== null && d.lon !== null ? `${d.lat}, ${d.lon}` : '无 GPS 信息'), inlineClass: 'location' },
+  coords: { label: '经纬度', value: d => d.lat !== null && d.lon !== null ? `${d.lat}, ${d.lon}` : '无 GPS 信息', inlineClass: 'coords' },
+  aperture: { label: '光圈', value: d => d.aperture || '未知光圈', inlineClass: 'ap' },
+  shutter: { label: '快门', value: d => d.shutter || '未知快门', inlineClass: 'ss' },
+  iso: { label: 'ISO', value: d => d.iso || '未知 ISO', inlineClass: 'iso' }
+};
+
+const outputPreferences = [
+  { key: 'model', visible: true },
+  { key: 'date', visible: true },
+  { key: 'location', visible: true },
+  { key: 'coords', visible: false },
+  { key: 'aperture', visible: true },
+  { key: 'shutter', visible: true },
+  { key: 'iso', visible: true }
+];
+
+const frameState = {
+  layout: 'bottom',
+  textAlign: 'left',
+  verticalAlign: 'bottom',
+  borderWidth: 88,
+  backgroundColor: '#F4F4F5',
+  textColor: '#1C1C1E',
+  fontScale: 1,
+  mergeParams: false
+};
+
+const outputOrderList = document.getElementById('output-order-list');
+const frameCanvas = document.getElementById('frame-canvas');
+const framePlaceholder = document.getElementById('frame-placeholder');
+const frameLayoutButtons = document.getElementById('frame-layout-buttons');
+const frameAlignButtons = document.getElementById('frame-align-buttons');
+const groupValignWrapper = document.getElementById('group-valign-wrapper');
+const frameValignButtons = document.getElementById('frame-valign-buttons');
+const frameBorderRange = document.getElementById('frame-border-range');
+const frameBorderValue = document.getElementById('frame-border-value');
+const frameFontRange = document.getElementById('frame-font-range');
+const frameFontValue = document.getElementById('frame-font-value');
+const frameDownloadBtn = document.getElementById('frame-download-btn');
+const leftPanel = document.querySelector('.left-panel');
+const middlePanel = document.querySelector('.middle-panel');
+const framePanel = document.querySelector('.frame-panel');
+const screenZoneLeft = document.querySelector('.screen-zone-left');
+const screenZoneMiddle = document.querySelector('.screen-zone-middle');
+const screenZoneRight = document.querySelector('.screen-zone-right');
+
+/* ════════════════════════════════════════
+   Drag & Drop + Click
+════════════════════════════════════════ */
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+});
+
+/* ════════════════════════════════════════
+   Main handler
+════════════════════════════════════════ */
+function handleFile(file) {
+  if (!file) return;
+  showPreview(file);
+  readExif(file);
+}
+
+function showPreview(file) {
+  const preview = document.getElementById('preview');
+  const hint = document.getElementById('drop-hint');
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentImageSrc = e.target.result;
+    currentImageName = (file.name || 'exif-frame').replace(/\.[^.]+$/, '');
+    preview.onload = () => {
+      activateWorkspace();
+      updateFramePreview();
+    };
+    preview.src = currentImageSrc;
+    preview.style.display = 'block';
+    hint.style.display = 'none';  
+    dropZone.classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ════════════════════════════════════════
+   Exif Parsing
+════════════════════════════════════════ */
+function readExif(file) {
+  resetUI();
+
+  EXIF.getData(file, function () {
+    const allTags = EXIF.getAllTags(this);
+    parsedData = extractFields(allTags);
+    renderExifTable(allTags);
+    renderFields(parsedData);
+
+    if (parsedData.lat !== null && parsedData.lon !== null) {
+      reverseGeocode(parsedData.lat, parsedData.lon);
+    } else {
+      buildOutput();
+    }
+  });
+}
+
+/* ════════════════════════════════════════
+   Field Extraction
+════════════════════════════════════════ */
+function extractFields(tags) {
+  const d = {
+    model: null, make: null,
+    aperture: null, shutter: null, iso: null,
+    date: null, lat: null, lon: null,
+    location: null, locationShort: null, focalLength: null, lens: null
+  };
+
+  d.make  = tags.Make  ? String(tags.Make).trim()  : null;
+  d.model = tags.Model ? String(tags.Model).trim() : null;
+  if (d.make && d.model && !d.model.startsWith(d.make)) {
+    d.model = d.make + ' ' + d.model;
+  }
+
+  if (tags.FNumber) {
+    const fn = toDecimal(tags.FNumber);
+    if (fn) d.aperture = 'f/' + fn.toFixed(1);
+  }
+  if (!d.aperture && tags.ApertureValue) {
+    const av = toDecimal(tags.ApertureValue);
+    if (av) d.aperture = 'f/' + Math.pow(Math.SQRT2, av).toFixed(1);
+  }
+
+  if (tags.ExposureTime) {
+    const et = toDecimal(tags.ExposureTime);
+    if (et) {
+      if (et >= 1) d.shutter = et.toFixed(1) + 's';
+      else d.shutter = '1/' + Math.round(1 / et) + 's';
+    }
+  }
+
+  if (tags.ISOSpeedRatings) {
+    d.iso = 'ISO ' + (Array.isArray(tags.ISOSpeedRatings) ? tags.ISOSpeedRatings[0] : tags.ISOSpeedRatings);
+  }
+
+  const dateStr = tags.DateTimeOriginal || tags.DateTime || tags.DateTimeDigitized;
+  if (dateStr) {
+    d.date = formatDate(dateStr);
+  }
+
+  if (tags.GPSLatitude && tags.GPSLongitude) {
+    d.lat = gpsToDecimal(tags.GPSLatitude, tags.GPSLatitudeRef);
+    d.lon = gpsToDecimal(tags.GPSLongitude, tags.GPSLongitudeRef);
+  }
+
+  if (tags.FocalLength) {
+    const fl = toDecimal(tags.FocalLength);
+    if (fl) d.focalLength = fl.toFixed(0) + 'mm';
+  }
+  d.lens = tags.LensModel || tags.LensMake || null;
+
+  return d;
+}
+
+/* ════════════════════════════════════════
+   GPS helpers
+════════════════════════════════════════ */
+function gpsToDecimal(arr, ref) {
+  if (!arr || !Array.isArray(arr) || arr.length < 3) return null;
+  const d = toDecimal(arr[0]);
+  const m = toDecimal(arr[1]);
+  const s = toDecimal(arr[2]);
+  if (d === null) return null;
+  let deg = d + (m || 0) / 60 + (s || 0) / 3600;
+  if (ref === 'S' || ref === 'W') deg = -deg;
+  return +deg.toFixed(7);
+}
+
+function toDecimal(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object' && 'numerator' in val) {
+    return val.denominator ? val.numerator / val.denominator : val.numerator;
+  }
+  if (Array.isArray(val) && val.length === 2) {
+    return val[1] ? val[0] / val[1] : val[0];
+  }
+  return parseFloat(val) || null;
+}
+
+/* ════════════════════════════════════════
+   Date formatter
+════════════════════════════════════════ */
+function formatDate(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{4})[:\-](\d{2})[:\-](\d{2})[\sT](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+  return str.replace(/:/g, '-').slice(0, 16);
+}
+
+/* ════════════════════════════════════════
+   Render Exif table (raw)
+════════════════════════════════════════ */
+const SKIP_TAGS = new Set(['MakerNote', 'UserComment', 'thumbnail', 'Thumbnail',
+  'JPEGThumbnail', 'TIFFThumbnail']);
+
+function renderExifTable(tags) {
+  const table = document.getElementById('exif-table');
+  table.innerHTML = '';
+  const entries = Object.entries(tags)
+    .filter(([k, v]) => !SKIP_TAGS.has(k) && v !== undefined && v !== null && v !== '');
+
+  if (!entries.length) {
+    table.innerHTML = '<div class="empty-hint">未找到 Exif 信息（可能是截图或经过处理的图片）</div>';
+    return;
+  }
+
+  entries.forEach(([key, val], i) => {
+    const row = document.createElement('div');
+    row.className = 'exif-row';
+    row.style.animationDelay = (i * 15) + 'ms';
+    let display = val;
+    if (Array.isArray(val)) display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
+    else if (typeof val === 'object') display = JSON.stringify(val);
+    row.innerHTML = `<div class="exif-key">${escHtml(key)}</div><div class="exif-val">${escHtml(String(display).slice(0, 200))}</div>`;
+    table.appendChild(row);
+  });
+}
+
+/* ════════════════════════════════════════
+   Render field cards
+════════════════════════════════════════ */
+function renderFields(d) {
+  set('f-model',    d.model    || '未知机型');
+  set('f-aperture', d.aperture || '—');
+  set('f-shutter',  d.shutter  || '—');
+  set('f-iso',      d.iso      || '—');
+  set('f-date',     d.date     || '—');
+  if (d.lat !== null) {
+    set('f-location', `${d.lat}, ${d.lon}`);
+  } else {
+    set('f-location', '无 GPS 信息');
+  }
+}
+
+/* ════════════════════════════════════════
+   Reverse Geocoding
+════════════════════════════════════════ */
+async function reverseGeocode(lat, lon) {
+  const spinner = document.getElementById('loc-spinner');
+  spinner.style.display = 'block';
+
+  try {
+    const result = await fetchReverseGeocode(lat, lon);
+    const address = result.address || `${lat}, ${lon}`;
+    const compactAddress = formatCompactLocation(result.parts, address);
+    parsedData.location = compactAddress;
+    parsedData.locationShort = compactAddress;
+
+  } catch (err) {
+    console.warn('Geocoding failed:', err);
+    parsedData.location = `${lat}, ${lon}`;
+    parsedData.locationShort = parsedData.location;
+  }
+
+  spinner.style.display = 'none';
+  set('f-location', parsedData.location);
+
+  if (parsedData.location !== `${lat}, ${lon}`) {
+    const locEl = document.getElementById('f-location');
+    const badge = document.createElement('span');
+    badge.className = 'geo-badge';
+    badge.textContent = 'GEO';
+    locEl.parentNode.insertBefore(badge, locEl.nextSibling);
+  }
+
+  buildOutput();
+}
+
+async function fetchReverseGeocode(lat, lon) {
+  const providers = [
+    () => reverseGeocodeByBigDataCloud(lat, lon),
+    () => reverseGeocodeByNominatim(lat, lon)
+  ];
+
+  let lastError = null;
+  for (const provider of providers) {
+    try {
+      const result = await provider();
+      if (result && result.address) return result;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('No reverse geocode provider available');
+}
+
+async function reverseGeocodeByBigDataCloud(lat, lon) {
+  const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('BigDataCloud HTTP ' + res.status);
+
+  const data = await res.json();
+  const parts = [];
+  const country = data.countryName || '';
+  const region = data.principalSubdivision || '';
+  const city = data.city || data.locality || data.localityInfo?.administrative?.[2]?.name || '';
+  const district = data.locality || data.localityInfo?.administrative?.[3]?.name || '';
+
+  if (country === '中国' || country === 'China') {
+    if (region) parts.push(region);
+    if (city && city !== region) parts.push(city);
+    if (district && district !== city) parts.push(district);
+  } else {
+    if (country) parts.push(country);
+    if (region) parts.push(region);
+    if (city) parts.push(city);
+    if (district && district !== city) parts.push(district);
+  }
+
+  return {
+    parts,
+    address: parts.length ? parts.join(' ') : `${lat}, ${lon}`
+  };
+}
+
+async function reverseGeocodeByNominatim(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=zh-CN`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'zh-CN,zh;q=0.9' } });
+  if (!res.ok) throw new Error('Nominatim HTTP ' + res.status);
+
+  const data = await res.json();
+  const a = data.address || {};
+  const parts = [];
+  const country = a.country || '';
+
+  if (country === '中国' || country === 'China') {
+    if (a.state) parts.push(a.state);
+    if (a.city && a.city !== a.state) parts.push(a.city);
+    if (a.district || a.county) parts.push(a.district || a.county);
+    if (a.suburb || a.quarter) parts.push(a.suburb || a.quarter);
+    if (a.road) parts.push(a.road);
+  } else {
+    if (a.country) parts.push(a.country);
+    if (a.state) parts.push(a.state);
+    if (a.city || a.town || a.village) parts.push(a.city || a.town || a.village);
+    if (a.road) parts.push(a.road);
+  }
+
+  return {
+    parts,
+    address: parts.length ? parts.join(' ') : (data.display_name || `${lat}, ${lon}`)
+  };
+}
+
+/* ════════════════════════════════════════
+   Build formatted output text
+════════════════════════════════════════ */
+function buildOutput() {
+  const detailedItems = getOrderedOutputItems('detailed');
+  const inlineItems = getOrderedOutputItems('inline');
+
+  if (!detailedItems.length) {
+    parsedData._plain = '';
+    parsedData._plainHtml = '<span style="color:var(--muted); font-size:13px;">请至少勾选一个显示项</span>';
+  } else {
+    parsedData._plain = detailedItems.map(item => `${item.label}：${item.value}`).join('\n');
+    parsedData._plainHtml = detailedItems.map(item =>
+      `<span class="line-key">${item.label}</span><span style="color:var(--muted)">：</span><span class="line-val">${escHtml(item.value)}</span>`
+    ).join('\n');
+  }
+
+  if (!inlineItems.length) {
+    parsedData._inline = '';
+    parsedData._inlineHtml = '<span style="color:var(--muted); font-size:13px;">请至少勾选一个显示项</span>';
+  } else {
+    parsedData._inline = inlineItems.map(item => item.value).join('\n');
+    parsedData._inlineHtml = `<span>${inlineItems.map(item =>
+      `<span class="inline-part ${item.className || ''}">${escHtml(item.value)}</span>`
+    ).join('</span>\n<span>')}</span>`;
+  }
+
+  renderActiveOutput();
+  updateFramePreview();
+}
+
+/* ════════════════════════════════════════
+   Copy
+════════════════════════════════════════ */
+function copyActiveOutput() {
+  copyOutput(activeOutputType);
+}
+
+function copyOutput(type) {
+  const text = type === 'inline' ? parsedData._inline : parsedData._plain;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    const originalHTML = btn.innerHTML;
+    
+    // Switch to success icon
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>已复制</span>`;
+    btn.style.background = '#71717a';
+    
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.style.background = '';
+    }, 2000);
+  });
+}
+
+/* ════════════════════════════════════════
+   Helpers
+════════════════════════════════════════ */
+function getOrderedOutputItems(mode) {
+  return outputPreferences
+    .filter(item => item.visible)
+    .map(item => {
+      const definition = OUTPUT_ITEMS[item.key];
+      if (!definition) return null;
+      const valueGetter = mode === 'inline' && definition.inlineValue ? definition.inlineValue : definition.value;
+      const value = valueGetter(parsedData);
+      return value ? {
+        key: item.key,
+        label: definition.label,
+        value,
+        className: definition.inlineClass || ''
+      } : null;
+    })
+    .filter(Boolean);
+}
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function formatCompactLocation(parts, fallback) {
+  if (!Array.isArray(parts) || !parts.length) return fallback;
+
+  const uniqueParts = parts
+    .map(part => String(part || '').trim())
+    .filter((part, index, array) => part && array.indexOf(part) === index)
+    .filter(part => !/^(中华人民共和国|中国|China)$/i.test(part));
+
+  if (!uniqueParts.length) return fallback;
+
+  const province = uniqueParts.find(part => /省|自治区|特别行政区|市$/.test(part));
+  const county = uniqueParts.find(part => /区|县|旗|市$/.test(part) && part !== province);
+  const city = uniqueParts.find(part => /州|地区|盟|市$/.test(part) && part !== province && part !== county);
+
+  if (province && county) return `${province} ${county}`;
+  if (province && city) return `${province} ${city}`;
+
+  return uniqueParts.length >= 2
+    ? `${uniqueParts[0]} ${uniqueParts[uniqueParts.length - 1]}`
+    : uniqueParts[0];
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderOutputControls() {
+  outputOrderList.innerHTML = '';
+
+  outputPreferences.forEach(item => {
+    const definition = OUTPUT_ITEMS[item.key];
+    const li = document.createElement('li');
+    li.className = 'sortable-item';
+    li.dataset.key = item.key;
+
+    const main = document.createElement('div');
+    main.className = 'sort-item-main';
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    // Six-dot grip icon for dragging
+    handle.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>`;
+
+    const label = document.createElement('span');
+    label.className = 'sort-item-label';
+    label.textContent = definition.label;
+
+    main.append(handle, label);
+
+    const checkLabel = document.createElement('label');
+    checkLabel.className = 'check-pill';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = item.visible;
+    input.addEventListener('change', () => {
+      item.visible = input.checked;
+      buildOutput();
+    });
+
+    checkLabel.append(input);
+    li.append(main, checkLabel);
+
+    outputOrderList.appendChild(li);
+  });
+
+  // 初始化 Sortable.js 实现丝滑拖拽动画
+  if (!window.sortableListInstance) {
+    window.sortableListInstance = new Sortable(outputOrderList, {
+      animation: 350, // 流畅的移动耗时
+      easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", // 统一的果冻弹性回弹曲线
+      handle: '.drag-handle',
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      onEnd: function (evt) {
+        const oldIndex = evt.oldIndex;
+        const newIndex = evt.newIndex;
+        if (oldIndex !== newIndex) {
+          const [moved] = outputPreferences.splice(oldIndex, 1);
+          outputPreferences.splice(newIndex, 0, moved);
+          buildOutput();
+        }
+      }
+    });
+  }
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function updateFramePreview() {
+  const ctx = frameCanvas.getContext('2d');
+  if (!currentImageSrc) {
+    ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+    framePlaceholder.hidden = false;
+    framePlaceholder.style.display = 'grid';
+    framePlaceholder.textContent = '导入图片后可在这里预览相框效果';
+    return;
+  }
+
+  try {
+    const image = await loadImage(currentImageSrc);
+    drawFrameCanvas(ctx, image);
+    framePlaceholder.hidden = true;
+    framePlaceholder.style.display = 'none';
+  } catch (err) {
+    console.warn('Frame preview failed:', err);
+    ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+    framePlaceholder.hidden = false;
+    framePlaceholder.style.display = 'grid';
+    framePlaceholder.textContent = '相框预览生成失败，请重新选择图片';
+  }
+}
+
+function drawFrameCanvas(ctx, image) {
+  let items = getOrderedOutputItems('inline');
+  
+  // 拦截并合并拍摄参数
+  if (frameState.mergeParams) {
+    const paramKeys = ['aperture', 'shutter', 'iso'];
+    const paramItems = items.filter(item => paramKeys.includes(item.key));
+    
+    if (paramItems.length > 0) {
+      // 记录合并后参数应该插入的位置（按第一项出现的位置为准）
+      const insertIndex = items.findIndex(item => paramKeys.includes(item.key));
+      // 将独立的参数移除
+      items = items.filter(item => !paramKeys.includes(item.key));
+      
+      const ap = paramItems.find(i => i.key === 'aperture');
+      const sh = paramItems.find(i => i.key === 'shutter');
+      const iso = paramItems.find(i => i.key === 'iso');
+      
+      const mergedParts = [];
+      if (ap) mergedParts.push(ap.value);
+      if (sh) mergedParts.push(sh.value);
+      if (iso) mergedParts.push(iso.value);
+      
+      const mergedItem = {
+        key: 'merged-params',
+        label: '拍摄参数',
+        value: mergedParts.join(' '), // 中间空一格合并
+        className: 'merged-params'
+      };
+      
+      items.splice(insertIndex, 0, mergedItem);
+    }
+  }
+
+  const canvas = ctx.canvas;
+  const imageW = image.naturalWidth || image.width;
+  const imageH = image.naturalHeight || image.height;
+  const border = frameState.borderWidth;
+  const innerGap = Math.max(20, Math.round(border * 0.8));
+
+  const maxEdge = 1800;
+  const scale = Math.min(1, maxEdge / Math.max(imageW, imageH));
+  const drawW = Math.round(imageW * scale);
+  const drawH = Math.round(imageH * scale);
+
+  // 基准字体大小，依据排版方向以保持合适比例
+  const isHorizontalLayout = frameState.layout === 'bottom' || frameState.layout === 'top';
+  const baseDim = isHorizontalLayout ? drawW : Math.max(drawW, drawH);
+  const baseFont = Math.max(18, Math.round((baseDim / 45) * frameState.fontScale));
+
+  // 1. 测量文本区块并获取精确尺寸
+  // 左右排版时给予更宽的折行阈值，避免短文本被强制换行
+  const maxWidthForWrap = isHorizontalLayout ? drawW : Math.max(400, drawW * 0.8);
+  const blocks = buildFrameLines(ctx, items, maxWidthForWrap, baseFont);
+
+  let maxLineWidth = 0;
+  let totalTextHeight = 0;
+  blocks.forEach(block => {
+    block.lines.forEach(line => {
+      ctx.font = `${block.fontWeight} ${block.fontSize}px "SF Pro Text", "PingFang SC", sans-serif`;
+      const w = ctx.measureText(line).width;
+      if (w > maxLineWidth) maxLineWidth = w;
+    });
+    totalTextHeight += block.lineHeight * block.lines.length + block.gap;
+  });
+  if (blocks.length > 0) {
+    totalTextHeight -= blocks[blocks.length - 1].gap; // 减去最后一项的多余底部间距
+  }
+
+  // 2. 根据排版模式计算画布总尺寸与各个元素的坐标
+  let canvasWidth, canvasHeight;
+  let imageX, imageY;
+  let textX, textY, textWidth, textHeight;
+
+  if (items.length === 0) {
+    canvasWidth = drawW + border * 2;
+    canvasHeight = drawH + border * 2;
+    imageX = border;
+    imageY = border;
+  } else if (frameState.layout === 'bottom') {
+    canvasWidth = drawW + border * 2;
+    canvasHeight = border + drawH + innerGap + totalTextHeight + border;
+    imageX = border;
+    imageY = border;
+    textX = border;
+    textY = border + drawH + innerGap;
+    textWidth = drawW;
+    textHeight = totalTextHeight;
+  } else if (frameState.layout === 'top') {
+    canvasWidth = drawW + border * 2;
+    canvasHeight = border + totalTextHeight + innerGap + drawH + border;
+    imageX = border;
+    imageY = border + totalTextHeight + innerGap;
+    textX = border;
+    textY = border;
+    textWidth = drawW;
+    textHeight = totalTextHeight;
+  } else if (frameState.layout === 'left') {
+    const sideH = Math.max(drawH, totalTextHeight);
+    canvasWidth = border + maxLineWidth + innerGap + drawW + border;
+    canvasHeight = sideH + border * 2;
+    imageX = border + maxLineWidth + innerGap;
+    imageY = border + (sideH - drawH) / 2;
+    textX = border;
+    
+    if (frameState.verticalAlign === 'top') {
+      textY = border;
+    } else if (frameState.verticalAlign === 'middle') {
+      textY = border + Math.max(0, sideH - totalTextHeight) / 2;
+    } else {
+      textY = border + Math.max(0, sideH - totalTextHeight); 
+    }
+    
+    textWidth = maxLineWidth;
+    textHeight = totalTextHeight;
+  } else if (frameState.layout === 'right') {
+    const sideH = Math.max(drawH, totalTextHeight);
+    canvasWidth = border + drawW + innerGap + maxLineWidth + border;
+    canvasHeight = sideH + border * 2;
+    imageX = border;
+    imageY = border + (sideH - drawH) / 2;
+    textX = border + drawW + innerGap;
+    
+    if (frameState.verticalAlign === 'top') {
+      textY = border;
+    } else if (frameState.verticalAlign === 'middle') {
+      textY = border + Math.max(0, sideH - totalTextHeight) / 2;
+    } else {
+      textY = border + Math.max(0, sideH - totalTextHeight);
+    }
+    
+    textWidth = maxLineWidth;
+    textHeight = totalTextHeight;
+  }
+
+  // 3. 绘制背景与图片
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillStyle = frameState.backgroundColor;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.drawImage(image, imageX, imageY, drawW, drawH);
+
+  // 4. 绘制文本
+  if (items.length > 0) {
+    drawTextBlocks(ctx, blocks, textX, textY, textWidth, frameState.textAlign, frameState.textColor);
+  }
+}
+
+function buildFrameLines(ctx, items, maxWidth, baseFont) {
+  return items.map(item => {
+    const isPrimary = item.key === 'model';
+    const fontSize = Math.round(baseFont * (isPrimary ? 1.18 : 0.9));
+    const lineHeight = Math.round(fontSize * 1.45);
+    const fontWeight = isPrimary ? 700 : 500;
+    const lines = wrapText(ctx, item.value, maxWidth, fontSize, fontWeight);
+    return {
+      key: item.key,
+      fontSize,
+      lineHeight,
+      fontWeight,
+      lines,
+      gap: isPrimary ? Math.round(fontSize * 0.9) : Math.round(fontSize * 0.45)
+    };
+  });
+}
+
+function drawTextBlocks(ctx, blocks, rectX, rectY, rectWidth, textAlign, color) {
+  let cursorY = rectY;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'top';
+
+  blocks.forEach(block => {
+    ctx.font = `${block.fontWeight} ${block.fontSize}px "SF Pro Text", "PingFang SC", sans-serif`;
+    ctx.textAlign = textAlign;
+    
+    block.lines.forEach(line => {
+      let x = rectX;
+      if (textAlign === 'center') x = rectX + rectWidth / 2;
+      if (textAlign === 'right') x = rectX + rectWidth;
+      
+      ctx.fillText(line, x, cursorY);
+      cursorY += block.lineHeight;
+    });
+    cursorY += block.gap;
+  });
+}
+
+function wrapText(ctx, text, maxWidth, fontSize, fontWeight) {
+  ctx.font = `${fontWeight} ${fontSize}px "SF Pro Text", "PingFang SC", sans-serif`;
+  const words = String(text).split(/\s+/);
+  if (words.length === 1) return breakLongToken(ctx, text, maxWidth);
+
+  const lines = [];
+  let current = '';
+  words.forEach(word => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  });
+  if (current) lines.push(current);
+  return lines.flatMap(line => breakLongToken(ctx, line, maxWidth));
+}
+
+function breakLongToken(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return [text];
+
+  const lines = [];
+  let buffer = '';
+  [...String(text)].forEach(char => {
+    const candidate = buffer + char;
+    if (ctx.measureText(candidate).width > maxWidth && buffer) {
+      lines.push(buffer);
+      buffer = char;
+    } else {
+      buffer = candidate;
+    }
+  });
+  if (buffer) lines.push(buffer);
+  return lines;
+}
+
+function updateSliderProgress(slider) {
+  const min = parseFloat(slider.min) || 0;
+  const max = parseFloat(slider.max) || 100;
+  const val = parseFloat(slider.value) || 0;
+  const percent = ((val - min) / (max - min)) * 100;
+  slider.style.setProperty('--progress', `${percent}%`);
+}
+
+function initFrameControls() {
+  // 初始化 Apple 风格的滑块进度
+  document.querySelectorAll('.range-row input[type="range"]').forEach(slider => {
+    updateSliderProgress(slider);
+    slider.addEventListener('input', () => updateSliderProgress(slider));
+  });
+
+  const frameControls = document.querySelector('.frame-controls');
+  const framePreviewShell = document.querySelector('.frame-preview-shell');
+  
+  // 状态变量
+  let isControlsHovered = false;
+  let isSliderDragging = false;
+  let isAnimatingHeight = false; // 动画状态锁，防止被打断
+  let transitionTimeoutId = null;
+
+  // 将预览区强行定格在当前高度
+  function lockShellHeight() {
+    if (!framePreviewShell.classList.contains('is-locked')) {
+      const currentHeight = framePreviewShell.getBoundingClientRect().height;
+      framePreviewShell.style.transition = 'none';
+      framePreviewShell.style.height = currentHeight + 'px';
+      framePreviewShell.offsetHeight; // 强制回流
+      framePreviewShell.classList.add('is-locked');
+    }
+  }
+
+  // 解除锁定，让预览区根据内部画布自适应撑开
+  function unlockShellHeight() {
+    framePreviewShell.style.transition = 'none';
+    framePreviewShell.style.height = '';
+    framePreviewShell.classList.remove('is-locked');
+  }
+
+  // 响应鼠标移入移出的常规逻辑
+  function updateLockState() {
+    // 【核心机制1】：动画播放期间绝对不响应任何鼠标徘徊，保证动画完整性
+    if (isAnimatingHeight) return; 
+
+    if (isControlsHovered || isSliderDragging) {
+      lockShellHeight();
+    } else {
+      if (framePreviewShell.classList.contains('is-locked')) {
+        // 鼠标确实移开了，触发自适应收放动画
+        animateShellToAutoHeight(null, false);
+      }
+    }
+  }
+
+  // 动态高度过渡动画引擎
+  function animateShellToAutoHeight(onComplete, force = false) {
+    // 【核心机制2】：如果已经在动画中，除非是强制指令（如排版切换），否则直接忽略
+    if (isAnimatingHeight && !force) return;
+    
+    isAnimatingHeight = true;
+    clearTimeout(transitionTimeoutId);
+    
+    // 1. 获取起点的锁定高度
+    const startHeight = framePreviewShell.getBoundingClientRect().height;
+    
+    // 2. 临时解锁，让浏览器渲染出真实的终点高度
+    unlockShellHeight();
+    const targetHeight = framePreviewShell.getBoundingClientRect().height;
+
+    // 3. 差值极小时跳过多余动画
+    if (Math.abs(startHeight - targetHeight) <= 1) {
+      isAnimatingHeight = false;
+      recheckLockState(); // 重新核对并应用最终鼠标状态
+      if (onComplete) onComplete();
+      return;
+    }
+
+    // 4. 重加锁定态！这会让 Canvas 在后续高度过渡时触发 object-fit 的平滑缩放
+    framePreviewShell.classList.add('is-locked');
+    framePreviewShell.style.height = startHeight + 'px';
+    framePreviewShell.offsetHeight; // 强制回流，确立起点
+
+    // 5. 开启弹性动画，向终点高度推展
+    framePreviewShell.style.transition = 'height 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    framePreviewShell.style.height = targetHeight + 'px';
+
+    const cleanup = () => {
+      framePreviewShell.removeEventListener('transitionend', onEnd);
+      clearTimeout(transitionTimeoutId);
+      framePreviewShell.style.transition = '';
+      
+      isAnimatingHeight = false; // 动画结束，释放锁
+      recheckLockState();        // 【核心机制3】：动画播放完，再根据最新鼠标位置判定去留
+      if (onComplete) onComplete();
+    };
+
+    const onEnd = (e) => {
+      if (e.target === framePreviewShell && e.propertyName === 'height') {
+        cleanup();
+      }
+    };
+
+    framePreviewShell.addEventListener('transitionend', onEnd);
+    transitionTimeoutId = setTimeout(cleanup, 500); // 兜底机制
+  }
+
+  // 动画结束后统一判定当前该锁定还是解锁
+  function recheckLockState() {
+    if (isControlsHovered || isSliderDragging) {
+      // 动画完发现鼠标还在里面（或者又回来了），则重新定格在最新的高度上
+      unlockShellHeight();
+      lockShellHeight();
+    } else {
+      // 鼠标确实在外面，彻底解锁为自然自适应
+      unlockShellHeight();
+    }
+    syncScreenZones();
+  }
+
+  // ---------------- 事件侦听 ----------------
+
+  frameControls.addEventListener('mouseenter', () => {
+    isControlsHovered = true;
+    updateLockState();
+  });
+
+  frameControls.addEventListener('mouseleave', () => {
+    isControlsHovered = false;
+    updateLockState();
+  });
+
+  frameControls.addEventListener('mousedown', (e) => {
+    if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'range') {
+      isSliderDragging = true;
+      updateLockState();
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isSliderDragging) {
+      isSliderDragging = false;
+      updateLockState();
+    }
+  });
+
+  const frameMergeParams = document.getElementById('frame-merge-params');
+  frameMergeParams.addEventListener('change', (e) => {
+    frameState.mergeParams = e.target.checked;
+    updateFramePreview();
+  });
+
+  function toggleValignVisibility() {
+    if (frameState.layout === 'left' || frameState.layout === 'right') {
+      groupValignWrapper.classList.remove('is-hidden');
+    } else {
+      groupValignWrapper.classList.add('is-hidden');
+    }
+  }
+  toggleValignVisibility();
+
+  frameLayoutButtons.addEventListener('click', e => {
+    const button = e.target.closest('[data-layout]');
+    if (!button) return;
+    
+    frameState.layout = button.dataset.layout;
+    frameLayoutButtons.querySelectorAll('.layout-btn').forEach(btn => {
+      btn.classList.toggle('active', btn === button);
+    });
+    toggleValignVisibility();
+    
+    // 更新画布后，底层 Canvas 高宽比例瞬间改变
+    updateFramePreview(); 
+    
+    // 强制触发过渡动画（即使鼠标此时正在悬停锁定），带来从旧排版到新排版的平滑缩放
+    animateShellToAutoHeight(null, true);
+  });
+
+  frameAlignButtons.addEventListener('click', e => {
+    const button = e.target.closest('[data-align]');
+    if (!button) return;
+    frameState.textAlign = button.dataset.align;
+    frameAlignButtons.querySelectorAll('.layout-btn').forEach(btn => {
+      btn.classList.toggle('active', btn === button);
+    });
+    updateFramePreview();
+  });
+
+  frameValignButtons.addEventListener('click', e => {
+    const button = e.target.closest('[data-valign]');
+    if (!button) return;
+    frameState.verticalAlign = button.dataset.valign;
+    frameValignButtons.querySelectorAll('.layout-btn').forEach(btn => {
+      btn.classList.toggle('active', btn === button);
+    });
+    updateFramePreview();
+  });
+
+  frameBorderRange.addEventListener('input', () => {
+    frameState.borderWidth = Number(frameBorderRange.value);
+    frameBorderValue.textContent = frameBorderRange.value;
+    updateFramePreview();
+  });
+
+  frameFontRange.addEventListener('input', () => {
+    frameState.fontScale = Number(frameFontRange.value) / 100;
+    frameFontValue.textContent = `${frameFontRange.value}%`;
+    updateFramePreview();
+  });
+
+  document.getElementById('frame-bg-swatches').addEventListener('click', e => {
+    const button = e.target.closest('[data-color]');
+    if (!button) return;
+    frameState.backgroundColor = button.dataset.color;
+    setActiveSwatch('frame-bg-swatches', button);
+    updateFramePreview();
+  });
+
+  document.getElementById('frame-text-swatches').addEventListener('click', e => {
+    const button = e.target.closest('[data-color]');
+    if (!button) return;
+    frameState.textColor = button.dataset.color;
+    setActiveSwatch('frame-text-swatches', button);
+    updateFramePreview();
+  });
+
+  frameDownloadBtn.addEventListener('click', downloadFrameImage);
+}
+
+function setActiveSwatch(containerId, activeButton) {
+  document.getElementById(containerId).querySelectorAll('.swatch-btn').forEach(button => {
+    button.classList.toggle('active', button === activeButton);
+  });
+}
+
+function downloadFrameImage() {
+  if (!currentImageSrc) return;
+  const link = document.createElement('a');
+  link.href = frameCanvas.toDataURL('image/png');
+  link.download = `${currentImageName}-frame.png`;
+  link.click();
+}
+
+function activateWorkspace() {
+  if (document.body.classList.contains('workspace-ready')) return;
+
+  document.body.classList.remove('intro-mode');
+  document.body.classList.add('workspace-mode');
+  document.body.classList.remove('workspace-ready');
+
+  requestAnimationFrame(() => {
+    syncScreenZones();
+    requestAnimationFrame(() => {
+      document.body.classList.add('workspace-ready');
+      syncScreenZones();
+    });
+  });
+}
+
+function syncScreenZones() {
+  if (!leftPanel || !middlePanel || !framePanel) return;
+
+  if (document.body.classList.contains('intro-mode')) {
+    const introRect = leftPanel.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const docHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      window.innerHeight
+    );
+    const left = Math.max(0, introRect.left);
+    const right = Math.min(viewportWidth, introRect.right);
+
+    applyZoneRect(screenZoneLeft, left, 0, right, docHeight);
+    applyZoneRect(screenZoneMiddle, right, 0, right, docHeight);
+    applyZoneRect(screenZoneRight, right, 0, right, docHeight);
+    return;
+  }
+
+  const leftRect = leftPanel.getBoundingClientRect();
+  const middleRect = middlePanel.getBoundingClientRect();
+  const frameRect = framePanel.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const scrollTop = window.scrollY || window.pageYOffset;
+  const docHeight = Math.max(
+    document.body.scrollHeight,
+    document.documentElement.scrollHeight,
+    window.innerHeight
+  );
+  const sameRowThreshold = 12;
+  const leftTop = scrollTop + leftRect.top;
+  const middleTop = scrollTop + middleRect.top;
+  const frameTop = scrollTop + frameRect.top;
+
+  const isThreeColumn = Math.abs(leftRect.top - middleRect.top) < sameRowThreshold
+    && Math.abs(leftRect.top - frameRect.top) < sameRowThreshold;
+  const isTwoColumn = Math.abs(leftRect.top - middleRect.top) < sameRowThreshold
+    && frameRect.top - leftRect.top > sameRowThreshold;
+
+  if (isThreeColumn) {
+    applyZoneRect(screenZoneLeft, 0, 0, middleRect.left, docHeight);
+    applyZoneRect(screenZoneMiddle, middleRect.left, 0, frameRect.left, docHeight);
+    applyZoneRect(screenZoneRight, frameRect.left, 0, viewportWidth, docHeight);
+    return;
+  }
+
+  if (isTwoColumn) {
+    applyZoneRect(screenZoneLeft, 0, 0, middleRect.left, frameTop);
+    applyZoneRect(screenZoneMiddle, middleRect.left, 0, viewportWidth, frameTop);
+    applyZoneRect(screenZoneRight, 0, frameTop, viewportWidth, docHeight);
+    return;
+  }
+
+  applyZoneRect(screenZoneLeft, 0, 0, viewportWidth, middleTop);
+  applyZoneRect(screenZoneMiddle, 0, middleTop, viewportWidth, frameTop);
+  applyZoneRect(screenZoneRight, 0, frameTop, viewportWidth, docHeight);
+}
+
+function applyZoneRect(element, left, top, right, bottom) {
+  element.style.left = `${Math.max(0, left)}px`;
+  element.style.top = `${Math.max(0, top)}px`;
+  element.style.width = `${Math.max(0, right - left)}px`;
+  element.style.height = `${Math.max(0, bottom - top)}px`;
+}
+
+function resetUI() {
+  const placeholder = '<span style="color:var(--muted);font-size:13px;">解析中…</span>';
+  document.getElementById('output-text').innerHTML = placeholder;
+  document.getElementById('exif-table').innerHTML =
+    '<div class="empty-hint">解析中…</div>';
+  ['f-model','f-aperture','f-shutter','f-iso','f-date','f-location'].forEach(id => set(id, '—'));
+  document.querySelectorAll('.geo-badge').forEach(el => el.remove());
+  parsedData = {};
+  updateFramePreview();
+}
+
+function setActiveTemplateTab(type) {
+  activeOutputType = type;
+
+  const detailedTab = document.getElementById('tab-detailed');
+  const inlineTab = document.getElementById('tab-inline');
+  detailedTab.classList.toggle('active', type === 'detailed');
+  inlineTab.classList.toggle('active', type === 'inline');
+  detailedTab.setAttribute('aria-selected', String(type === 'detailed'));
+  inlineTab.setAttribute('aria-selected', String(type === 'inline'));
+
+  const output = document.getElementById('output-text');
+  output.classList.toggle('output-text-inline', type === 'inline');
+
+  renderActiveOutput();
+}
+
+function renderActiveOutput() {
+  const output = document.getElementById('output-text');
+  if (!parsedData._plainHtml && !parsedData._inlineHtml) {
+    output.innerHTML = '<span style="color:var(--muted); font-size:13px;">等待图片…</span>';
+    return;
+  }
+
+  output.innerHTML = activeOutputType === 'inline'
+    ? (parsedData._inlineHtml || '')
+    : (parsedData._plainHtml || '');
+}
+
+renderOutputControls();
+initFrameControls();
+syncScreenZones();
+window.addEventListener('resize', syncScreenZones);
+
+const zoneObserver = new ResizeObserver(() => syncScreenZones());
+zoneObserver.observe(document.body);
+zoneObserver.observe(leftPanel);
+zoneObserver.observe(middlePanel);
+zoneObserver.observe(framePanel);
+</script>
+</body>
+</html>

@@ -196,6 +196,7 @@
       box-shadow: var(--shadow-soft);
       transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
       font-family: inherit;
+      white-space: nowrap;
     }
 
     .theme-btn:hover {
@@ -286,12 +287,12 @@
     }
 
     /* 增强材质感：毛玻璃与饱和度 */
-    .drop-zone, .field-card, .raw-exif-block, .output-settings, .output-card, .frame-card, .theme-btn, .theme-menu {
+    .drop-zone, .info-card, .raw-exif-block, .output-settings, .output-card, .frame-card, .theme-btn, .theme-menu {
       backdrop-filter: saturate(180%) blur(24px);
       -webkit-backdrop-filter: saturate(180%) blur(24px);
     }
 
-    .drop-zone, .field-card, .raw-exif-block, .output-settings, .output-card, .frame-card, .sortable-list, .frame-controls {
+    .drop-zone, .info-card, .raw-exif-block, .output-settings, .output-card, .frame-card, .sortable-list, .frame-controls {
       transition: background-color 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease;
     }
 
@@ -800,37 +801,358 @@
       color: var(--text);
     }
 
-    /* Field badges */
-    .fields-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+    /* ── Section heads (步骤标题) ── */
+    .section-head {
+      display: flex;
+      align-items: center;
       gap: 10px;
+      padding: 0 4px;
+      min-height: 28px;
     }
 
-    .field-card {
+    .step-num {
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--text);
+      color: var(--bg);
+      font-size: var(--fs-caption);
+      font-weight: var(--fw-bold);
+      font-variant-numeric: tabular-nums;
+      flex: 0 0 auto;
+    }
+
+    .section-title {
+      font-size: var(--fs-title);
+      font-weight: var(--fw-bold);
+      color: var(--text);
+      letter-spacing: .01em;
+    }
+
+    .section-desc {
+      margin-left: auto;
+      font-size: var(--fs-caption);
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 4px 8px 0;
+    }
+
+    .card-hint {
+      font-size: var(--fs-caption);
+      color: var(--muted);
+    }
+
+    /* ── Photo info card ── */
+    .info-card {
       background: color-mix(in srgb, var(--surface3) 80%, transparent);
       border: 1px solid var(--border);
+      border-radius: var(--radius-panel);
+      padding: var(--panel-padding);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .file-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px;
+      font-size: var(--fs-caption);
+      color: var(--muted);
+      min-width: 0;
+    }
+
+    .file-meta .file-name {
+      color: var(--text);
+      font-weight: var(--fw-medium);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .file-meta .dot { opacity: .5; }
+
+    .spec-head {
+      padding: 4px 8px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .spec-model {
+      font-size: 20px;
+      font-weight: var(--fw-bold);
+      letter-spacing: -.01em;
+      color: var(--text);
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .spec-lens {
+      font-size: var(--fs-ui);
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .spec-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      background: color-mix(in srgb, var(--surface3) 82%, transparent);
+      border: 1px solid var(--border);
       border-radius: var(--radius-card);
-      padding: 12px;
+      overflow: hidden;
+    }
+
+    .spec-cell {
+      padding: 12px 10px;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      box-shadow: var(--shadow-soft);
+      min-width: 0;
+    }
+
+    .spec-cell + .spec-cell {
+      border-left: 1px solid var(--border);
     }
 
     .field-label {
       font-size: var(--fs-caption);
       color: var(--muted);
       font-weight: var(--fw-regular);
-      text-transform: uppercase;
-      letter-spacing: .06em;
+      letter-spacing: .04em;
     }
 
     .field-value {
       font-size: var(--fs-body);
       font-weight: var(--fw-bold);
       color: var(--text);
+      font-variant-numeric: tabular-nums;
+      word-break: break-word;
     }
+
+    .spec-cell .field-value {
+      font-size: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-list {
+      display: flex;
+      flex-direction: column;
+      background: color-mix(in srgb, var(--surface3) 82%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      min-height: 48px;
+    }
+
+    .meta-row + .meta-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .meta-icon {
+      color: var(--muted);
+      display: flex;
+      flex: 0 0 auto;
+    }
+
+    .meta-row .field-label {
+      flex: 0 0 auto;
+      min-width: 32px;
+    }
+
+    .meta-row .field-value,
+    .meta-row .location-row {
+      margin-left: auto;
+      text-align: right;
+      font-weight: var(--fw-medium);
+      min-width: 0;
+    }
+
+    .meta-row .location-row {
+      justify-content: flex-end;
+    }
+
+    /* ── Raw EXIF search ── */
+    .raw-exif-count {
+      margin-left: auto;
+      margin-right: 10px;
+      font-size: var(--fs-caption);
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .exif-search {
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: var(--fs-ui);
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .exif-search:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    /* ── Header file chip ── */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .logo-tagline {
+      font-size: var(--fs-ui);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    body.intro-mode .replace-btn { display: none; }
+
+    /* ── Frame control sections ── */
+    .control-section + .control-section {
+      border-top: 1px solid var(--border);
+    }
+
+    .control-section-title {
+      padding: 12px 14px 0;
+      font-size: var(--fs-caption);
+      font-weight: var(--fw-medium);
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+
+    .control-section .frame-control-group + .frame-control-group,
+    .control-section .frame-control-group + .valign-wrapper {
+      border-top: 1px solid var(--border);
+    }
+
+    .valign-wrapper.is-hidden {
+      border-top-color: transparent !important;
+    }
+
+    .download-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .download-row .copy-btn {
+      flex: 1;
+    }
+
+    .copy-btn:disabled,
+    .secondary-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .copy-btn.is-success {
+      background: #34c759;
+      color: #fff;
+    }
+
+    /* ── Keyboard focus ── */
+    .drop-zone:focus-visible,
+    .layout-btn:focus-visible,
+    .swatch-btn:focus-visible,
+    .template-tab:focus-visible,
+    .copy-btn:focus-visible,
+    .secondary-btn:focus-visible,
+    .theme-btn:focus-visible,
+    .theme-item:focus-visible,
+    .raw-exif-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .drop-zone .replace-overlay {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translate(-50%, 6px);
+      padding: 7px 14px;
+      border-radius: var(--radius-pill);
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: var(--fs-caption);
+      font-weight: var(--fw-medium);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+      white-space: nowrap;
+      display: none;
+    }
+
+    .drop-zone.has-image .replace-overlay { display: block; }
+
+    .drop-zone.has-image:hover .replace-overlay,
+    .drop-zone.has-image.drag-over .replace-overlay,
+    .drop-zone.has-image:focus-visible .replace-overlay {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    body:not(.intro-mode) .drop-zone {
+      aspect-ratio: var(--photo-ratio, 4 / 3);
+    }
+
+    /* 起始页：上传提示居中 */
+    body.intro-mode .drop-zone:not(.has-image) {
+      justify-content: center;
+      align-items: center;
+    }
+
+    body.intro-mode #drop-hint {
+      align-items: center;
+    }
+
+    body.intro-mode .drop-zone .hint {
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .spec-lens:empty { display: none; }
 
     /* Spinner */
     .spinner {
@@ -1001,7 +1323,7 @@
       min-height: 56px;
     }
 
-    .frame-controls > div + div {
+    .frame-controls > .control-section + .control-section {
       border-top: 1px solid var(--border);
     }
 
@@ -1254,7 +1576,7 @@
         --panel-padding: 10px;
         --radius-control: 8px;
       }
-      .fields-grid { grid-template-columns: repeat(2, 1fr); }
+      .logo-tagline { display: none; }
 
       body.intro-mode .main {
         width: min(560px, calc(100vw - 20px));
@@ -1267,9 +1589,21 @@
     }
 
     @media (max-width: 560px) {
-      .fields-grid {
-        grid-template-columns: 1fr;
+      .spec-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+
+      .spec-cell:nth-child(3) {
+        border-left: none;
+      }
+
+      .spec-cell:nth-child(n+3) {
+        border-top: 1px solid var(--border);
+      }
+
+      .section-desc { display: none; }
+
+      .replace-btn .replace-label { display: none; }
 
       .output-header {
         gap: 12px;
@@ -1316,131 +1650,178 @@
 <div class="screen-zone screen-zone-right" aria-hidden="true"></div>
 
 <header>
-  <span class="logo">ExifReader</span>
-  
-  <div class="theme-switcher-container">
-    <button class="theme-btn" id="theme-btn" aria-haspopup="menu" aria-expanded="false">
-      <div class="theme-pill-icon" id="current-theme-icon">
-        <span style="background: var(--zone-left)"></span>
-        <span style="background: var(--zone-middle)"></span>
-        <span style="background: var(--zone-right)"></span>
-      </div>
-      <span id="current-theme-name">默认风格</span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px; color:var(--muted);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+  <div class="logo-group">
+    <span class="logo">ExifReader</span>
+    <span class="logo-tagline">读取照片参数 · 生成信息相框</span>
+  </div>
+
+  <div class="header-actions">
+    <button class="secondary-btn btn-with-icon replace-btn" id="replace-btn" type="button" title="更换图片">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      <span class="replace-label">更换图片</span>
     </button>
-    <ul class="theme-menu" id="theme-menu" role="menu">
-      <!-- 动态注入项 -->
-    </ul>
+    <div class="theme-switcher-container">
+      <button class="theme-btn" id="theme-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换界面风格">
+        <div class="theme-pill-icon" id="current-theme-icon">
+          <span style="background: var(--zone-left)"></span>
+          <span style="background: var(--zone-middle)"></span>
+          <span style="background: var(--zone-right)"></span>
+        </div>
+        <span id="current-theme-name">默认风格</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px; color:var(--muted);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <ul class="theme-menu" id="theme-menu" role="menu">
+        <!-- 动态注入项 -->
+      </ul>
+    </div>
   </div>
 </header>
 
 <div class="main">
 
-  <!-- ══ LEFT ══ -->
-  <div class="left-panel">
+  <!-- ══ 01 · 照片信息 ══ -->
+  <section class="left-panel" aria-labelledby="sec-photo">
 
-    <div class="drop-zone" id="drop-zone">
+    <div class="section-head">
+      <span class="step-num">1</span>
+      <h2 class="section-title" id="sec-photo">照片信息</h2>
+    </div>
+
+    <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="选择或拖入图片">
       <input type="file" id="file-input" accept="image/*" />
-      <img id="preview" class="preview-img" alt="预览" />
+      <img id="preview" class="preview-img" alt="照片预览" />
       <div id="drop-hint">
         <div class="icon">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         </div>
         <div class="hint">
           <strong>拖入图片</strong> 或点击选择<br />
-          <span style="font-size:var(--fs-caption);">支持 JPEG / HEIC / TIFF 等含 Exif 格式</span>
+          <span style="font-size:var(--fs-caption);">支持 JPEG / HEIC / TIFF 等含 Exif 格式 · 图片仅在本地处理</span>
         </div>
       </div>
+      <span class="replace-overlay">点击或拖入以更换图片</span>
     </div>
 
-    <div class="fields-grid" id="fields-grid">
-      <div class="field-card">
-        <div class="field-label">机型</div>
-        <div class="field-value" id="f-model">—</div>
+    <div class="info-card">
+      <div class="file-meta" id="file-meta">
+        <span class="file-name" id="file-name">—</span>
+        <span class="dot">·</span>
+        <span id="file-dims">—</span>
+        <span class="dot">·</span>
+        <span id="file-size">—</span>
       </div>
-      <div class="field-card">
-        <div class="field-label">光圈</div>
-        <div class="field-value" id="f-aperture">—</div>
+
+      <div class="spec-head">
+        <div class="spec-model" id="f-model">—</div>
+        <div class="spec-lens" id="f-lens">—</div>
       </div>
-      <div class="field-card">
-        <div class="field-label">快门</div>
-        <div class="field-value" id="f-shutter">—</div>
+
+      <div class="spec-strip">
+        <div class="spec-cell">
+          <div class="field-label">光圈</div>
+          <div class="field-value" id="f-aperture">—</div>
+        </div>
+        <div class="spec-cell">
+          <div class="field-label">快门</div>
+          <div class="field-value" id="f-shutter">—</div>
+        </div>
+        <div class="spec-cell">
+          <div class="field-label">ISO</div>
+          <div class="field-value" id="f-iso">—</div>
+        </div>
+        <div class="spec-cell">
+          <div class="field-label">焦距</div>
+          <div class="field-value" id="f-focal">—</div>
+        </div>
       </div>
-      <div class="field-card">
-        <div class="field-label">ISO</div>
-        <div class="field-value" id="f-iso">—</div>
-      </div>
-      <div class="field-card">
-        <div class="field-label">日期</div>
-        <div class="field-value" id="f-date">—</div>
-      </div>
-      <div class="field-card">
-        <div class="field-label">位置</div>
-        <div class="location-row">
-          <div class="field-value" id="f-location">—</div>
-          <div class="spinner" id="loc-spinner"></div>
+
+      <div class="meta-list">
+        <div class="meta-row">
+          <span class="meta-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></span>
+          <span class="field-label">时间</span>
+          <span class="field-value" id="f-date">—</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
+          <span class="field-label">位置</span>
+          <div class="location-row">
+            <span class="field-value" id="f-location">—</span>
+            <div class="spinner" id="loc-spinner"></div>
+          </div>
         </div>
       </div>
     </div>
 
     <details class="raw-exif-block">
       <summary class="raw-exif-toggle">
-        <span class="panel-title">原始 EXIF 数据</span>
+        <span class="panel-title" style="margin-bottom:0;">全部 EXIF 字段</span>
+        <span class="raw-exif-count" id="exif-count"></span>
       </summary>
+      <input class="exif-search" id="exif-search" type="search" placeholder="搜索字段名或值…" aria-label="搜索 EXIF 字段" />
       <div class="exif-table" id="exif-table">
         <div class="empty-hint">尚未读取到数据</div>
       </div>
     </details>
 
-  </div>
+  </section>
 
-  <!-- ══ MIDDLE ══ -->
-  <div class="middle-panel">
+  <!-- ══ 02 · 输出内容 ══ -->
+  <section class="middle-panel" aria-labelledby="sec-content">
+
+    <div class="section-head">
+      <span class="step-num">2</span>
+      <h2 class="section-title" id="sec-content">选择输出内容</h2>
+    </div>
 
     <div class="output-settings">
-      <div class="settings-title">信息显示项</div>
+      <div class="card-head">
+        <div class="settings-title" style="padding:0;">显示字段</div>
+        <span class="card-hint" id="field-count"></span>
+      </div>
       <ul class="sortable-list" id="output-order-list"></ul>
+      <div class="card-hint" style="padding:0 8px 4px;">拖动 ⋮⋮ 调整顺序，同时作用于文本和相框</div>
     </div>
 
     <div class="output-card">
-      <div class="output-header">
-        <div class="template-tabs" role="tablist" aria-label="信息文本模板">
-          <button class="template-tab active" id="tab-detailed" type="button" role="tab" aria-selected="true" onclick="setActiveTemplateTab('detailed')">详细格式</button>
-          <button class="template-tab" id="tab-inline" type="button" role="tab" aria-selected="false" onclick="setActiveTemplateTab('inline')">简约格式</button>
+      <div class="card-head" style="align-items:center;">
+        <div class="settings-title" style="padding:0;">信息文本</div>
+        <div class="template-tabs" role="tablist" aria-label="信息文本格式">
+          <button class="template-tab active" id="tab-detailed" type="button" role="tab" aria-selected="true" onclick="setActiveTemplateTab('detailed')">详细</button>
+          <button class="template-tab" id="tab-inline" type="button" role="tab" aria-selected="false" onclick="setActiveTemplateTab('inline')">简约</button>
         </div>
       </div>
-      <div class="output-text" id="output-text">
+      <div class="output-text" id="output-text" aria-live="polite">
         <span style="color:var(--muted); font-size:var(--fs-ui);">等待图片…</span>
       </div>
-      <button class="copy-btn output-copy-btn btn-with-icon" id="copy-btn" onclick="copyActiveOutput()">
+      <button class="copy-btn output-copy-btn btn-with-icon" id="copy-btn" type="button" onclick="copyActiveOutput()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-        <span>复制</span>
+        <span>复制文本</span>
       </button>
     </div>
 
-  </div>
+  </section>
 
-  <!-- ══ RIGHT ══ -->
-  <div class="frame-panel">
+  <!-- ══ 03 · 相框导出 ══ -->
+  <section class="frame-panel" aria-labelledby="sec-frame">
+
+    <div class="section-head">
+      <span class="step-num">3</span>
+      <h2 class="section-title" id="sec-frame">生成相框</h2>
+      <span class="section-desc">导出为 PNG，最长边 1800px</span>
+    </div>
 
     <div class="frame-card">
-      <div class="frame-header">
-        <div class="settings-title">合成相框</div>
-        <button class="copy-btn btn-with-icon" id="frame-download-btn" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>下载</span>
-        </button>
-      </div>
-
       <div class="frame-preview-shell">
         <canvas class="frame-canvas" id="frame-canvas" width="1200" height="900"></canvas>
         <div class="frame-placeholder" id="frame-placeholder">导入图片后可在这里预览相框效果</div>
       </div>
 
       <div class="frame-controls">
-        <div class="frame-control-group">
-          <div class="panel-title">排版方式</div>
-          <div class="layout-buttons" id="frame-layout-buttons">
+        <div class="control-section">
+          <div class="control-section-title">布局</div>
+          <div class="frame-control-group">
+            <div class="panel-title">信息位置</div>
+            <div class="layout-buttons" id="frame-layout-buttons">
             <button class="layout-btn active" type="button" data-layout="bottom" title="下边框">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4z" fill="currentColor" stroke="none"/></svg>
               <span>下边</span>
@@ -1458,11 +1839,10 @@
               <span>右边</span>
             </button>
           </div>
-        </div>
-
-        <div class="frame-control-group">
-          <div class="panel-title">文字对齐</div>
-          <div class="align-buttons" id="frame-align-buttons">
+          </div>
+          <div class="frame-control-group">
+            <div class="panel-title">水平对齐</div>
+            <div class="align-buttons" id="frame-align-buttons">
             <button class="layout-btn icon-only active" type="button" data-align="left" title="左对齐">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="15" y1="12" x2="3" y2="12"></line><line x1="17" y1="18" x2="3" y2="18"></line></svg>
             </button>
@@ -1473,9 +1853,8 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="12" x2="9" y2="12"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
             </button>
           </div>
-        </div>
-
-        <div class="valign-wrapper is-hidden" id="group-valign-wrapper">
+          </div>
+          <div class="valign-wrapper is-hidden" id="group-valign-wrapper">
           <div class="valign-inner">
             <div class="frame-control-group" id="group-valign">
               <div class="panel-title">垂直对齐</div>
@@ -1493,27 +1872,50 @@
             </div>
           </div>
         </div>
+        </div>
 
-        <div class="frame-control-group">
-          <div class="panel-title">合并参数</div>
-          <div style="display: flex; justify-content: flex-end;">
-            <label class="check-pill" title="合并光圈、快门、ISO">
-              <input type="checkbox" id="frame-merge-params" />
-            </label>
+        <div class="control-section">
+          <div class="control-section-title">文字</div>
+          <div class="frame-control-group">
+            <div class="panel-title">文字大小</div>
+            <div class="range-row">
+              <input id="frame-font-range" type="range" min="80" max="150" step="5" value="100" aria-label="文字大小" />
+              <span class="range-value" id="frame-font-value">100%</span>
+            </div>
+          </div>
+          <div class="frame-control-group">
+            <div class="panel-title">合并参数</div>
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
+              <span class="card-hint">焦距 / 光圈 / 快门 / ISO 合为一行</span>
+              <label class="check-pill" title="合并焦距、光圈、快门、ISO">
+                <input type="checkbox" id="frame-merge-params" aria-label="合并拍摄参数为一行" />
+              </label>
+            </div>
+          </div>
+          <div class="frame-control-group">
+            <div class="panel-title">文字颜色</div>
+            <div class="swatch-row" id="frame-text-swatches">
+            <button class="swatch-btn active" type="button" data-role="text" data-color="#1C1C1E" style="background:#1C1C1E;" title="石墨黑"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#FFFFFF" style="background:#FFFFFF;" title="纯白"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#8E8E93" style="background:#8E8E93;" title="银灰"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#B69D74" style="background:#B69D74;" title="香槟金"></button>
+            <button class="swatch-btn" type="button" data-role="text" data-color="#4A6B7C" style="background:#4A6B7C;" title="石板蓝"></button>
+          </div>
           </div>
         </div>
 
-        <div class="frame-control-group">
-          <div class="panel-title">边框宽度</div>
-          <div class="range-row">
-            <input id="frame-border-range" type="range" min="40" max="220" step="4" value="88" />
-            <span class="range-value" id="frame-border-value">88</span>
+        <div class="control-section">
+          <div class="control-section-title">边框</div>
+          <div class="frame-control-group">
+            <div class="panel-title">边框宽度</div>
+            <div class="range-row">
+              <input id="frame-border-range" type="range" min="40" max="220" step="4" value="88" aria-label="边框宽度" />
+              <span class="range-value" id="frame-border-value">88</span>
+            </div>
           </div>
-        </div>
-
-        <div class="frame-control-group">
-          <div class="panel-title">背景颜色</div>
-          <div class="swatch-row" id="frame-bg-swatches">
+          <div class="frame-control-group">
+            <div class="panel-title">背景颜色</div>
+            <div class="swatch-row" id="frame-bg-swatches">
             <button class="swatch-btn active" type="button" data-role="bg" data-color="#F4F4F5" style="background:#F4F4F5;" title="浅灰白"></button>
             <button class="swatch-btn" type="button" data-role="bg" data-color="#FFFFFF" style="background:#FFFFFF;" title="纯白"></button>
             <button class="swatch-btn" type="button" data-role="bg" data-color="#E8E6E1" style="background:#E8E6E1;" title="象牙暖白"></button>
@@ -1521,33 +1923,22 @@
             <button class="swatch-btn" type="button" data-role="bg" data-color="#2C3539" style="background:#2C3539;" title="午夜蓝"></button>
             <button class="swatch-btn" type="button" data-role="bg" data-color="#4A4543" style="background:#4A4543;" title="碳灰"></button>
           </div>
-        </div>
-
-        <div class="frame-control-group">
-          <div class="panel-title">文字颜色</div>
-          <div class="swatch-row" id="frame-text-swatches">
-            <button class="swatch-btn active" type="button" data-role="text" data-color="#1C1C1E" style="background:#1C1C1E;" title="石墨黑"></button>
-            <button class="swatch-btn" type="button" data-role="text" data-color="#FFFFFF" style="background:#FFFFFF;" title="纯白"></button>
-            <button class="swatch-btn" type="button" data-role="text" data-color="#8E8E93" style="background:#8E8E93;" title="银灰"></button>
-            <button class="swatch-btn" type="button" data-role="text" data-color="#B69D74" style="background:#B69D74;" title="香槟金"></button>
-            <button class="swatch-btn" type="button" data-role="text" data-color="#4A6B7C" style="background:#4A6B7C;" title="石板蓝"></button>
-          </div>
-        </div>
-
-        <div class="frame-control-group">
-          <div class="panel-title">内容大小</div>
-          <div class="range-row">
-            <input id="frame-font-range" type="range" min="80" max="150" step="5" value="100" />
-            <span class="range-value" id="frame-font-value">100%</span>
           </div>
         </div>
       </div>
+
+      <div class="download-row">
+        <button class="copy-btn btn-with-icon" id="frame-download-btn" type="button" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>下载相框图片</span>
+        </button>
+      </div>
     </div>
 
-  </div>
+  </section>
 </div>
 
-<footer>ExifReader · 纯客户端处理，图片数据不上传服务器</footer>
+<footer>ExifReader · 纯客户端处理，图片不上传服务器；仅在含 GPS 时向地理编码服务发送坐标</footer>
 
 <!-- 引入 Sortable.js 实现丝滑拖拽 -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -1576,6 +1967,8 @@ function initThemeSwitcher() {
     const li = document.createElement('li');
     li.className = `theme-item ${theme.id === 'default' ? 'active' : ''}`;
     li.dataset.theme = theme.id;
+    li.setAttribute('role', 'menuitemradio');
+    li.tabIndex = 0;
     li.innerHTML = `
       <div class="theme-pill-icon">
         <span style="background: ${theme.colors[0]}"></span>
@@ -1586,6 +1979,10 @@ function initThemeSwitcher() {
     `;
     themeMenu.appendChild(li);
     
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); li.click(); }
+    });
+
     // 绑定点击事件
     li.addEventListener('click', () => {
       // 切换当前激活状态样式
@@ -1636,6 +2033,8 @@ const OUTPUT_ITEMS = {
   date: { label: '时间', value: d => d.date || '未知时间', inlineClass: 'date' },
   location: { label: '位置', value: d => d.location || formatCoordinates(d.lat, d.lon), inlineValue: d => d.locationShort || d.location || formatCoordinates(d.lat, d.lon), inlineClass: 'location' },
   coords: { label: '经纬度', value: d => formatCoordinates(d.lat, d.lon), inlineClass: 'coords' },
+  lens: { label: '镜头', value: d => d.lens || '未知镜头', inlineClass: 'lens' },
+  focal: { label: '焦距', value: d => d.focalLength || '未知焦距', inlineClass: 'focal' },
   aperture: { label: '光圈', value: d => d.aperture || '未知光圈', inlineClass: 'ap' },
   shutter: { label: '快门', value: d => d.shutter || '未知快门', inlineClass: 'ss' },
   iso: { label: 'ISO', value: d => d.iso || '未知 ISO', inlineClass: 'iso' }
@@ -1646,6 +2045,8 @@ const outputPreferences = [
   { key: 'date', visible: true },
   { key: 'location', visible: true },
   { key: 'coords', visible: false },
+  { key: 'lens', visible: false },
+  { key: 'focal', visible: false },
   { key: 'aperture', visible: true },
   { key: 'shutter', visible: true },
   { key: 'iso', visible: true }
@@ -1688,7 +2089,14 @@ const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 
 dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+dropZone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+});
+document.getElementById('replace-btn').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  handleFile(e.target.files[0]);
+  e.target.value = ''; // 允许重复选择同一文件
+});
 
 dropZone.addEventListener('dragover', e => {
   e.preventDefault();
@@ -1718,7 +2126,14 @@ function showPreview(file) {
   reader.onload = e => {
     currentImageSrc = e.target.result;
     currentImageName = (file.name || 'exif-frame').replace(/\.[^.]+$/, '');
+    set('file-name', file.name || '未命名图片');
+    set('file-size', formatFileSize(file.size));
+    document.getElementById('file-name').title = file.name || '';
     preview.onload = () => {
+      set('file-dims', `${preview.naturalWidth} × ${preview.naturalHeight}`);
+      // 预览框跟随照片比例，限制在 3:4 ~ 16:9 之间，避免过高或过扁
+      const ratio = Math.min(16 / 9, Math.max(3 / 4, preview.naturalWidth / preview.naturalHeight));
+      dropZone.style.setProperty('--photo-ratio', String(ratio));
       activateWorkspace();
       updateFramePreview();
     };
@@ -1862,6 +2277,8 @@ function renderExifTable(tags) {
   const entries = Object.entries(tags)
     .filter(([k, v]) => !SKIP_TAGS.has(k) && v !== undefined && v !== null && v !== '');
 
+  set('exif-count', entries.length ? `${entries.length} 项` : '');
+
   if (!entries.length) {
     table.innerHTML = '<div class="empty-hint">未找到 Exif 信息（可能是截图或经过处理的图片）</div>';
     return;
@@ -1875,15 +2292,28 @@ function renderExifTable(tags) {
     if (Array.isArray(val)) display = val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
     else if (typeof val === 'object') display = JSON.stringify(val);
     row.innerHTML = `<div class="exif-key">${escHtml(key)}</div><div class="exif-val">${escHtml(String(display).slice(0, 200))}</div>`;
+    row.dataset.search = `${key} ${display}`.toLowerCase();
     table.appendChild(row);
   });
+  filterExifTable();
 }
+
+function filterExifTable() {
+  const query = document.getElementById('exif-search').value.trim().toLowerCase();
+  document.querySelectorAll('#exif-table .exif-row').forEach(row => {
+    row.hidden = query !== '' && !row.dataset.search.includes(query);
+  });
+}
+
+document.getElementById('exif-search').addEventListener('input', filterExifTable);
 
 /* ════════════════════════════════════════
    Render field cards
 ════════════════════════════════════════ */
 function renderFields(d) {
   set('f-model',    d.model    || '未知机型');
+  set('f-lens',     d.lens     || '');
+  set('f-focal',    d.focalLength || '—');
   set('f-aperture', d.aperture || '—');
   set('f-shutter',  d.shutter  || '—');
   set('f-iso',      d.iso      || '—');
@@ -2031,7 +2461,13 @@ function buildOutput() {
   }
 
   renderActiveOutput();
+  updateFieldCount();
   updateFramePreview();
+}
+
+function updateFieldCount() {
+  const visible = outputPreferences.filter(item => item.visible).length;
+  set('field-count', `已选 ${visible} / ${outputPreferences.length}`);
 }
 
 /* ════════════════════════════════════════
@@ -2050,11 +2486,11 @@ function copyOutput(type) {
     
     // Switch to success icon
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>已复制</span>`;
-    btn.style.background = 'var(--success)';
-    
+    btn.classList.add('is-success');
+
     setTimeout(() => {
       btn.innerHTML = originalHTML;
-      btn.style.background = '';
+      btn.classList.remove('is-success');
     }, 2000);
   });
 }
@@ -2107,6 +2543,13 @@ function formatCompactLocation(parts, fallback) {
     : uniqueParts[0];
 }
 
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -2144,6 +2587,7 @@ function renderOutputControls() {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = item.visible;
+    input.setAttribute('aria-label', `显示${definition.label}`);
     input.addEventListener('change', () => {
       item.visible = input.checked;
       buildOutput();
@@ -2192,12 +2636,14 @@ async function updateFramePreview() {
     framePlaceholder.hidden = false;
     framePlaceholder.style.display = 'grid';
     framePlaceholder.textContent = '导入图片后可在这里预览相框效果';
+    frameDownloadBtn.disabled = true;
     return;
   }
 
   try {
     const image = await loadImage(currentImageSrc);
     drawFrameCanvas(ctx, image);
+    frameDownloadBtn.disabled = false;
     framePlaceholder.hidden = true;
     framePlaceholder.style.display = 'none';
   } catch (err) {
@@ -2214,7 +2660,7 @@ function drawFrameCanvas(ctx, image) {
   
   // 拦截并合并拍摄参数
   if (frameState.mergeParams) {
-    const paramKeys = ['aperture', 'shutter', 'iso'];
+    const paramKeys = ['focal', 'aperture', 'shutter', 'iso'];
     const paramItems = items.filter(item => paramKeys.includes(item.key));
     
     if (paramItems.length > 0) {
@@ -2223,11 +2669,13 @@ function drawFrameCanvas(ctx, image) {
       // 将独立的参数移除
       items = items.filter(item => !paramKeys.includes(item.key));
       
+      const fl = paramItems.find(i => i.key === 'focal');
       const ap = paramItems.find(i => i.key === 'aperture');
       const sh = paramItems.find(i => i.key === 'shutter');
       const iso = paramItems.find(i => i.key === 'iso');
       
       const mergedParts = [];
+      if (fl) mergedParts.push(fl.value);
       if (ap) mergedParts.push(ap.value);
       if (sh) mergedParts.push(sh.value);
       if (iso) mergedParts.push(iso.value);
@@ -2768,7 +3216,9 @@ function resetUI() {
   document.getElementById('output-text').innerHTML = placeholder;
   document.getElementById('exif-table').innerHTML =
     '<div class="empty-hint">解析中…</div>';
-  ['f-model','f-aperture','f-shutter','f-iso','f-date','f-location'].forEach(id => set(id, '—'));
+  set('f-lens', '');
+  ['f-model','f-aperture','f-shutter','f-iso','f-focal','f-date','f-location'].forEach(id => set(id, '—'));
+  set('exif-count', '');
   document.querySelectorAll('.geo-badge').forEach(el => el.remove());
   parsedData = {};
   updateFramePreview();
@@ -2802,7 +3252,12 @@ function renderActiveOutput() {
     : (parsedData._plainHtml || '');
 }
 
+document.querySelectorAll('.layout-btn[title], .swatch-btn[title]').forEach(btn => {
+  btn.setAttribute('aria-label', btn.title);
+});
+
 renderOutputControls();
+updateFieldCount();
 initFrameControls();
 syncScreenZones();
 window.addEventListener('resize', syncScreenZones);
